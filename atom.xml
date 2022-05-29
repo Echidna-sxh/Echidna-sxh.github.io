@@ -8,8 +8,350 @@
     <author>
       <name>Echidna</name>
     </author>
-    <updated>2021-12-03T10:29:28.000Z</updated>
+    <updated>2022-05-11T12:39:38.541Z</updated>
     <category term="blog" />
+    <entry>
+        <id>https://echidna-sxh.github.io/grasscutter/grasscutter/</id>
+        <title></title>
+        <link rel="alternate" href="https://echidna-sxh.github.io/grasscutter/grasscutter/"/>
+        <content type="html">&lt;h1 id=&#34;grasscutter-使用指南androidwindowsios端均已支持&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#grasscutter-使用指南androidwindowsios端均已支持&#34;&gt;#&lt;/a&gt; grasscutter 使用指南 ——Android/Windows/IOS 端均已支持&lt;/h1&gt;
+&lt;h2 id=&#34;前言&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#前言&#34;&gt;#&lt;/a&gt; 前言&lt;/h2&gt;
+&lt;p&gt;grasscutter 是某二次元手游的开源后端，目前功能并不完整，但正在 contributers 正在全速开发中，未来可期。可以部署在 linux 和 windows 下，通过代理与各种平台的客户端进行交互。本文提供 grasscutter 的 linux 端部署（windows 端比较简单）、windows/andriod/ios 端的客户端连接指导，其中安卓提供机器 root 和非 root 两种情况下的解决方案。本文需要有一定的计算机基础，不面向小白，尽量说的详细，说明部分可能包含简单的 shell 命令，自行执行，不提供一键安装脚本，不提供已搭建完成的服务器，适合爱折腾的玩家，不希望任何人以此盈利，欢迎进行技术交流，有问题可以问。&lt;/p&gt;
+&lt;p&gt;关键突破点为 mitmproxy 在安卓客户端的 ca 证书安装，安卓可以使用 vmos 获得一个 root 过的虚拟机（vmos 不要在应用商店下载，有关键功能阉割，去官网下载。root 功能需要 vip，有慈禧预付费版本，不想花钱的可以自己动手找一下）&lt;/p&gt;
+&lt;h2 id=&#34;更新&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#更新&#34;&gt;#&lt;/a&gt; 更新&lt;/h2&gt;
+&lt;p&gt;目前 dev 版本已更新秘境和深渊，大世界支持联机。&lt;/p&gt;
+&lt;h2 id=&#34;关键词&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#关键词&#34;&gt;#&lt;/a&gt; 关键词&lt;/h2&gt;
+&lt;p&gt;SSL、CA 证书、grasscutter、某二次元游戏、代理转发、http 注入、安卓、IOS、windows&lt;/p&gt;
+&lt;h2 id=&#34;环境准备&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#环境准备&#34;&gt;#&lt;/a&gt; 环境准备&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;java se 17&lt;/li&gt;
+&lt;li&gt;mongodb 4.0+&lt;/li&gt;
+&lt;li&gt;mitmproxy&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;环境准备请自行度娘解决&lt;/p&gt;
+&lt;h2 id=&#34;linux服务端搭建centos7&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#linux服务端搭建centos7&#34;&gt;#&lt;/a&gt; linux 服务端搭建（centos7）&lt;/h2&gt;
+&lt;p&gt;1.git 拉取 或 直接&lt;span class=&#34;exturl&#34; data-url=&#34;aHR0cHM6Ly9naXRodWIuY29tL0dyYXNzY3V0dGVycy9HcmFzc2N1dHRlcg==&#34;&gt;下载&lt;/span&gt;源代码，并上传到服务器，tar -xzf 解压缩&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;git clone -b development https://github.com/Grasscutters/Grasscutter.git
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;注意下载的 dev 版本（如果编译不通过，又不想调试，可以改下 stable 版本）&lt;/p&gt;
+&lt;h3 id=&#34;1关闭防火墙或配置放行策略注意除了常规端口外要放行tcp和udp的22102端口&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#1关闭防火墙或配置放行策略注意除了常规端口外要放行tcp和udp的22102端口&#34;&gt;#&lt;/a&gt; 1. 关闭防火墙或配置放行策略（注意除了常规端口外，要放行 TCP 和 UDP 的 22102 端口）&lt;/h3&gt;
+&lt;pre&gt;&lt;code&gt;systemctl stop firewalld
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;我就比较直接，23333。如果是云服务器，记得去控制台配置一下安全组策略，服务端 90% 的问题来自这里。&lt;/p&gt;
+&lt;h3 id=&#34;2-启动mongodb自行百度linux下如何启动mongodb这个基本上没啥问题后续出现27017端口问题或mongodb类似的报错多半是mongo服务没起或者挂了&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#2-启动mongodb自行百度linux下如何启动mongodb这个基本上没啥问题后续出现27017端口问题或mongodb类似的报错多半是mongo服务没起或者挂了&#34;&gt;#&lt;/a&gt; 2. 启动 mongodb，自行百度 linux 下如何启动 mongodb，这个基本上没啥问题，后续出现 27017 端口问题或 mongodb 类似的报错，多半是 mongo 服务没起或者挂了。&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;这里提供一个&lt;span class=&#34;exturl&#34; data-url=&#34;aHR0cHM6Ly96aHVhbmxhbi56aGlodS5jb20vcC8xMTA4NjkxNTU=&#34;&gt;教程&lt;/span&gt;，执行到启动 mongodb 服务并验证即可。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;3-编译需要java17环境自带gradle全自动编译脚本执行就完事了&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#3-编译需要java17环境自带gradle全自动编译脚本执行就完事了&#34;&gt;#&lt;/a&gt; 3. 编译，需要 java17 环境自带 gradle 全自动编译脚本，执行就完事了。&lt;/h3&gt;
+&lt;pre&gt;&lt;code&gt;sh gradlew jar
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;执行时间视服务器配置而定，如有报错，请检查你的 java 环境和网络环境，善用度娘&lt;/p&gt;
+&lt;p&gt;编译成功后会在 grasscutter 的主目录下 生成一个 grasscutter 开头（加版本号）的 jar 文件，直接运行&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;java -jar grasscutter-1.1.0.jar #1.1.0是我下载的版本
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;会提示缺少资源文件，并给你创好了资源文件的目录（resources，没创的话自行创一下），里面的内容需要你自己下载。&lt;/p&gt;
+&lt;h3 id=&#34;4-下载资源文件&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#4-下载资源文件&#34;&gt;#&lt;/a&gt; 4. 下载资源文件&lt;/h3&gt;
+&lt;p&gt;&lt;span class=&#34;exturl&#34; data-url=&#34;aHR0cHM6Ly9naXRodWIuY29tL21lbWV0cm9sbHNYRC9HcmFzc2N1dHRlcl9SZXNvdXJjZXM=&#34;&gt;github 地址&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;注：此仓库被 github 停掉的概率较高，注意备份，原因不多说了，dddd。&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;git clone https://github.com/memetrollsXD/Grasscutter_Resources.git
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;将 Resources 下的文件全部复制到 grasscutter 根目录下的 resources 文件夹中，包括 BinOutput、ExcelBinOutput、Readable、Scripts、Subtitle、TextMap&lt;/p&gt;
+&lt;h3 id=&#34;5-启动服务器&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#5-启动服务器&#34;&gt;#&lt;/a&gt; 5. 启动服务器&lt;/h3&gt;
+&lt;p&gt;修改配置文件 config.json&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;&amp;#123;
+  &amp;quot;DatabaseUrl&amp;quot;: &amp;quot;mongodb://localhost:27017&amp;quot;,
+  &amp;quot;DatabaseCollection&amp;quot;: &amp;quot;grasscutter&amp;quot;,
+  &amp;quot;RESOURCE_FOLDER&amp;quot;: &amp;quot;./resources/&amp;quot;,
+  &amp;quot;DATA_FOLDER&amp;quot;: &amp;quot;./data/&amp;quot;,
+  &amp;quot;PACKETS_FOLDER&amp;quot;: &amp;quot;./packets/&amp;quot;,
+  &amp;quot;DUMPS_FOLDER&amp;quot;: &amp;quot;./dumps/&amp;quot;,
+  &amp;quot;KEY_FOLDER&amp;quot;: &amp;quot;./keys/&amp;quot;,
+  &amp;quot;SCRIPTS_FOLDER&amp;quot;: &amp;quot;./resources/Scripts/&amp;quot;,
+  &amp;quot;PLUGINS_FOLDER&amp;quot;: &amp;quot;./plugins/&amp;quot;,
+  &amp;quot;DebugMode&amp;quot;: &amp;quot;NONE&amp;quot;,
+  &amp;quot;RunMode&amp;quot;: &amp;quot;HYBRID&amp;quot;,
+  &amp;quot;GameServer&amp;quot;: &amp;#123;
+    &amp;quot;Name&amp;quot;: &amp;quot;Test&amp;quot;,
+    &amp;quot;Ip&amp;quot;: &amp;quot;0.0.0.0&amp;quot;,
+    &amp;quot;PublicIp&amp;quot;: &amp;quot;your public ip&amp;quot;,
+    &amp;quot;Port&amp;quot;: 22102,
+    &amp;quot;PublicPort&amp;quot;: 0,
+    &amp;quot;DispatchServerDatabaseUrl&amp;quot;: &amp;quot;mongodb://localhost:27017&amp;quot;,
+    &amp;quot;DispatchServerDatabaseCollection&amp;quot;: &amp;quot;grasscutter&amp;quot;,
+    &amp;quot;InventoryLimitWeapon&amp;quot;: 2000,
+    &amp;quot;InventoryLimitRelic&amp;quot;: 2000,
+    &amp;quot;InventoryLimitMaterial&amp;quot;: 2000,
+    &amp;quot;InventoryLimitFurniture&amp;quot;: 2000,
+    &amp;quot;InventoryLimitAll&amp;quot;: 30000,
+    &amp;quot;MaxAvatarsInTeam&amp;quot;: 4,
+    &amp;quot;MaxAvatarsInTeamMultiplayer&amp;quot;: 4,
+    &amp;quot;MaxEntityLimit&amp;quot;: 1000,
+    &amp;quot;WatchGacha&amp;quot;: false,
+    &amp;quot;ServerNickname&amp;quot;: &amp;quot;Server&amp;quot;,
+    &amp;quot;ServerAvatarId&amp;quot;: 10000007,
+    &amp;quot;ServerNameCardId&amp;quot;: 210001,
+    &amp;quot;ServerLevel&amp;quot;: 1,
+    &amp;quot;ServerWorldLevel&amp;quot;: 1,
+    &amp;quot;ServerSignature&amp;quot;: &amp;quot;Server Signature&amp;quot;,
+    &amp;quot;WelcomeEmotes&amp;quot;: [
+      2007,
+      1002,
+      4010
+    ],
+    &amp;quot;WelcomeMotd&amp;quot;: &amp;quot;Welcome to Grasscutter emu&amp;quot;,
+    &amp;quot;WelcomeMailTitle&amp;quot;: &amp;quot;Welcome to Grasscutter!&amp;quot;,
+    &amp;quot;WelcomeMailSender&amp;quot;: &amp;quot;Lawnmower&amp;quot;,
+    &amp;quot;WelcomeMailContent&amp;quot;: &amp;quot;Hi there!\r\nFirst of all, welcome to Grasscutter. If you have any issues, please let us know so that Lawnmower can help you! \r\n\r\nCheck out our:\r\n\u003ctype\u003d\&amp;quot;browser\&amp;quot; text\u003d\&amp;quot;Discord\&amp;quot; href\u003d\&amp;quot;https://discord.gg/T5vZU6UyeG\&amp;quot;/\u003e&amp;quot;,
+    &amp;quot;WelcomeMailItems&amp;quot;: [
+      &amp;#123;
+        &amp;quot;itemId&amp;quot;: 13509,
+        &amp;quot;itemCount&amp;quot;: 1,
+        &amp;quot;itemLevel&amp;quot;: 1
+      &amp;#125;,
+      &amp;#123;
+        &amp;quot;itemId&amp;quot;: 201,
+        &amp;quot;itemCount&amp;quot;: 10000,
+        &amp;quot;itemLevel&amp;quot;: 1
+      &amp;#125;
+    ],
+    &amp;quot;EnableOfficialShop&amp;quot;: true,
+    &amp;quot;Game&amp;quot;: &amp;#123;
+      &amp;quot;ADVENTURE_EXP_RATE&amp;quot;: 1.0,
+      &amp;quot;MORA_RATE&amp;quot;: 1.0,
+      &amp;quot;DOMAIN_DROP_RATE&amp;quot;: 1.0
+    &amp;#125;
+  &amp;#125;,
+  &amp;quot;DispatchServer&amp;quot;: &amp;#123;
+    &amp;quot;Ip&amp;quot;: &amp;quot;0.0.0.0&amp;quot;,
+    &amp;quot;PublicIp&amp;quot;: &amp;quot;your public ip&amp;quot;,
+    &amp;quot;Port&amp;quot;: 14514,
+    &amp;quot;PublicPort&amp;quot;: 0,
+    &amp;quot;KeystorePath&amp;quot;: &amp;quot;./keystore.p12&amp;quot;,
+    &amp;quot;KeystorePassword&amp;quot;: &amp;quot;123456&amp;quot;,
+    &amp;quot;UseSSL&amp;quot;: true,
+    &amp;quot;FrontHTTPS&amp;quot;: true,
+    &amp;quot;CORS&amp;quot;: false,
+    &amp;quot;CORSAllowedOrigins&amp;quot;: [
+      &amp;quot;*&amp;quot;
+    ],
+    &amp;quot;AutomaticallyCreateAccounts&amp;quot;: false,
+    &amp;quot;defaultPermissions&amp;quot;: [
+      &amp;quot;&amp;quot;
+    ],
+    &amp;quot;GameServers&amp;quot;: []
+  &amp;#125;,
+  &amp;quot;LocaleLanguage&amp;quot;: &amp;quot;en_US&amp;quot;,
+  &amp;quot;DefaultLanguage&amp;quot;: &amp;quot;en&amp;quot;,
+  &amp;quot;OpenStamina&amp;quot;: true
+&amp;#125;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;其实只需要修改两处 publicip 为你的公网 ip，以及如果你不想用 443 端口，修改一下 DispatchServer.port 即可，注意这里修改的话，下面的 mitmdump 的配置也需要同步修改。其他的不涉及网络的选项，你自己看着改。&lt;/p&gt;
+&lt;p&gt;（我开的端口有点臭，23333）&lt;/p&gt;
+&lt;p&gt;再执行一次启动命令&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;java -jar grasscutter-1.1.0.jar
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;显示游戏服务器在 22102 端口运行，转发服务器在 14514 端口运行，即为成功。&lt;/p&gt;
+&lt;p&gt;此时参照命令表，在该 shell 窗口输入账号创建命令&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;account create echidna 114514233
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;会提示账号创建成功。&lt;/p&gt;
+&lt;h3 id=&#34;qa&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#qa&#34;&gt;#&lt;/a&gt; QA&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;java 编译失败&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;列出我遇到的几种可能原因，&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;ol&gt;
+&lt;li&gt;java 环境没配好，这属于最不太可能的错误，但还是检测一下，输入 java --version，看是不是 17 点几版本的，不是赶紧换。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;ol start=&#34;2&#34;&gt;
+&lt;li&gt;网络问题，编译过程会给你安装 gradle 和一系列 jar 依赖，看看卡在哪里了自行下载后导入。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;ol start=&#34;3&#34;&gt;
+&lt;li&gt;内存问题，编译需要占用较多内存，实测内存 512MB 失败，2G 成功，运行时最低需要 1G 内存，（本来想用 vps 服务器的，但 vps 配置较差，没编过去，哈哈哈）&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;ol start=&#34;4&#34;&gt;
+&lt;li&gt;程序问题，dev 版本编译建失败实属正常现象，要么自己调一下，要么换 stable 版本。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;ol start=&#34;5&#34;&gt;
+&lt;li&gt;上述是我实际遇到过的问题，如依然不能解决，自行百度，本人 C++ 工程师，java 属实有点专业盲区。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;2&#34;&gt;
+&lt;li&gt;程序运行失败&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;ol&gt;
+&lt;li&gt;确认你的 resources 目录正常存在于编译生成的入口 jar 文件的同级目录下，并内容齐全。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;ol start=&#34;2&#34;&gt;
+&lt;li&gt;确认你 config.json 文件的 json 格式没有被破坏，比如手滑多删了个引号（还真有人这么蠢，是谁呢，不会是我吧？）&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;ol start=&#34;3&#34;&gt;
+&lt;li&gt;确认你的 mongodb 的守护进程正常，ps -aux | grep mongod&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;ol start=&#34;4&#34;&gt;
+&lt;li&gt;确认没有程序占用你的端口，netstat -tunlp  | grep &amp;lt;你设置的端口，默认是 443&amp;gt;，linux 下的常见犯人叫 ngnix，windows 下的常见犯人叫 vmware，重点检查。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;ol start=&#34;5&#34;&gt;
+&lt;li&gt;确认你的可用内存大于 1G&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;ol start=&#34;6&#34;&gt;
+&lt;li&gt;提示密码错误的，可以把 config.json 中的 DispatchServer.KeystorePassword 改为空（原本是空的改为 123456，每个版本的 key 可能放的不一样，反正两个总有一个是对的）。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;6-配置抓包以及http注入&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#6-配置抓包以及http注入&#34;&gt;#&lt;/a&gt; 6. 配置抓包以及 http 注入&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;这里我们用到 mitmproxy，我看到不少人使用 fiddler，但 fiddler 是基于.net 开发的程序，移植到 linux 并不方便。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;可以直接使用 pip3 安装，没装 python3 的 yum 装一下。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;pre&gt;&lt;code&gt;pip3 install mitmproxy
+&lt;/code&gt;&lt;/pre&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;会给你安装 mitmproxy 及其命令行版本，即 mitmdump，还有其多版本的 ca 证书&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;也可以去官网下载二进制版本，但不带 ca 证书，需要你自行部署完成后开启代理并访问 mitm.it 下载，但国内的云服务器不允许域名转发到未备案域名，所以会比较麻烦。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;安装完成后，我们回到 grasscutter 的主目录&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;  vim proxy_config.py
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;修改配置文件，如下：&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;  import os
+
+  # This can also be replaced with another IP address.
+  USE_SSL = True
+  REMOTE_HOST = &amp;quot;your public ip&amp;quot;
+  REMOTE_PORT = 14514
+
+  if os.getenv(&#39;MITM_REMOTE_HOST&#39;) != None:
+      REMOTE_HOST = os.getenv(&#39;MITM_REMOTE_HOST&#39;)
+  if os.getenv(&#39;MITM_REMOTE_PORT&#39;) != None:
+      REMOTE_PORT = int(os.getenv(&#39;MITM_REMOTE_PORT&#39;))
+  if os.getenv(&#39;MITM_USE_SSL&#39;) != None:
+      USE_SSL = bool(os.getenv(&#39;MITM_USE_SSL&#39;))
+
+  print(&#39;MITM Remote Host: &#39; + REMOTE_HOST)
+  print(&#39;MITM Remote Port: &#39; + str(REMOTE_PORT))
+  print(&#39;MITM Use SSL &#39; + str(USE_SSL))
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;注意此处的 REMOTE_PORT 要与上面你修改的 dispatchsever 的 port 一致。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;配置 ca 证书&lt;/li&gt;
+&lt;/ul&gt;
+&lt;pre&gt;&lt;code&gt;cp ~/.mitmproxy/mitmproxy-ca-cert.crt /etc/ssl/certs # 这句是安装为根证书，未必需要
+cp ~/.mitmproxy/mitmproxy-ca-cert.pem /etc/pki/ca-trust/source/anchors
+update-ca-trust extract
+&lt;/code&gt;&lt;/pre&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;执行转发。重点来了，mitmproxy 的安卓代理存在诸多问题，需要添加一系列参数进行规避，而这部分，大部分教程并未提及&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;mitmdump -s proxy.py --ssl-insecure --set block_global=false --no-http2
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;允许不安全的 ssl 连接，禁用 http2 连接，以及禁用 internet 对 mitmproxy 的直接访问，。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;此时，代理服务器会在默认的 8080 端口启动，同样请确保端口不会冲突。&lt;/p&gt;
+&lt;h2 id=&#34;windows端登陆&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#windows端登陆&#34;&gt;#&lt;/a&gt; windows 端登陆&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;配置 ca 证书&lt;/p&gt;
+&lt;p&gt;将服务器端～/.mitmproxy 文件夹下的 mitmproxy-ca-cert.p12 文件拿到 windows 机器上，直接双击，选择给本地计算机安装，要密码直接空过，自动选择目录即可，重启机器。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;windows 端支持国服和国际服客户端登录，方法非常简单，打开网络和 Internet 设置，选择代理，打开手动设置代理选项，填写地址和端口，即为你上面设置的 publicip 和 mitmdump 的端口（默认 8080 那个）。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;打开客户端，直接用你创建的账号密码登录即可。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;qa-2&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#qa-2&#34;&gt;#&lt;/a&gt; QA&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;为啥我客户端提示网络异常？&lt;/p&gt;
+&lt;p&gt;代理端口不对，建议检查你的 mitmproxy 是否活着，端口号是否正确。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;为啥 4206 了？&lt;/p&gt;
+&lt;p&gt;大抵是证书装的有问题罢，要么你没有全局安装，要么可以把上面那个 mitmproxy 目录下的另外一个 p12 文件也拉出装一下，目前未验证 grasscutter 下的证书是否需要安装，可以尝试一下安装那个 grasscutter 下的 keystore.p12 文件。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;连上去后网络非常不稳定&lt;/p&gt;
+&lt;p&gt;你服务器带宽问题。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;登录进去显示 12-4301&lt;/p&gt;
+&lt;p&gt;建议切换美服通道登录&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;为啥我发现我 nohup 后台运行程序的服务器炸了？&lt;/p&gt;
+&lt;p&gt;硬盘炸了，ssh 连不上的话，先去控制台重启一下。首先，必须重定向 nohup 到 dev/null，而且目前 grasscutter 有 bug，会往主目录的 log 文件夹里疯狂写入 latest.log，目前 config.json 中未发现相关选择，本人是懒得去代码里找，直接选择删除 latest.log。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;其他问题&lt;/p&gt;
+&lt;p&gt;检查你的有没有科学上网啥的，关了。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;ios端登录&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#ios端登录&#34;&gt;#&lt;/a&gt; IOS 端登录&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;自行搜索 ios 如何安装 ca 证书，我们要安装的 ca 证书是～/.mitmproxy 目录下的 mitmproxy-ca-cert.pem，注意下载完成后要去找到这个文件，点一下，然后再执行证书安装的两个步骤（先安装再信任）。&lt;/li&gt;
+&lt;li&gt;不要使用小火箭，会有 bug，原因很简单，小火箭不会转发 udp 报文，但我们的 grasscuter 是依赖于 kcp 这种 udp 协议的。&lt;/li&gt;
+&lt;li&gt;IOS 端一把成功，没遇到啥问题，有问题应该和上述 windows 端差不多的解决方法。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;android端登录&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#android端登录&#34;&gt;#&lt;/a&gt; Android 端登录&lt;/h2&gt;
+&lt;p&gt;比上面的都要复杂，问题主要出在，Android7.0 往后，应用可以选择不信任用户证书，而很遗憾该手游 app 就是设置为不信任的那种，基于此，我想出 3 条解决方案。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;magisk，就是俗称的面具 root，不过没有备用机，不打算刷掉我的正常使用的手机，并不考虑。&lt;/li&gt;
+&lt;li&gt;改包，设置为接受用户证书，然后重新打包，值得一试。&lt;/li&gt;
+&lt;li&gt;使用虚拟机，也就是安卓模拟器。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;乍一看，第三点是一个非常抽象的想法，这意味着要在安卓机上装安卓模拟器，这不搞笑吗。但找了一下，真的有这种东西，vmos pro。&lt;/p&gt;
+&lt;p&gt;至于这玩意咋整，应该没啥技术难度，注意我之前说的关于 vmos pro 的注意事项即可，剩下的百度解决。&lt;/p&gt;
+&lt;p&gt;当我们有了一个 root 过的虚拟机的时候，我需要将 ca 证书安装到系统目录下，为此需要 openssl 进行安卓系统 ca 证书的制作。&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;
+yum install openssl
+openssl x509 -inform PEM -subject_hash_old -in mitmproxy-ca-cert.pem -noout
+cp mitmproxy-ca-cert.pem c8750f0d.0 # 这边的c8750f0d是上一条命令的输出。
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;将这个文件放入 /system/etc/security/cacerts/ 下，并修改权限为 644&lt;/p&gt;
+&lt;p&gt;设置中长按你所连接的 wifi，选择修改网络，设置代理，和上面的其他客户端一样的要求。&lt;/p&gt;
+&lt;p&gt;连接即可，注意需要国际服客户端。&lt;/p&gt;
+&lt;h2 id=&#34;结语&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#结语&#34;&gt;#&lt;/a&gt; 结语&lt;/h2&gt;
+&lt;p&gt;本人网络方向 C++ 工程师，本来以为可以一晚上解决的，但其实还是研究了不少时间的，毕竟要跑 dev 版本的 java 的代码（我跑的那个版本编译都有问题 2333），以及一堆 ca 证书问题，终于全客户端搞定了这玩意，搭建了一个服务器和朋友一起玩玩。为防止一切侵权隐患，以及屏蔽正义游侠，文章概不放图，但该讲到的节点都讲到了，有需要技术支持的请评论区留言，技术支持不收费，三言两语能解决的我都会回答（只要你不是小白，大部分问题属于这种），想以此盈利的请勿打扰（之前看到一个群友截图，大致说是有个卖家某宝 98 出售私服，结果买家进群，卖家说 windows 和 ios 都解决了，让大家等等安卓端的解决方案，笑死）。&lt;/p&gt;
+&lt;p&gt;关于私服问题，我是持底线态度的，只要不借此盈利即可，盈利那是纯纯的收割冤种。毕竟这是一个主打大世界探索的游戏，私服缺少你的核心玩法，注定就该只是自娱自乐。如果说只有单纯抽卡和副本的私服真的能把你干爆了，你是不是该想想自己游戏的问题呢？（来自一个长草长到人麻了的玩家）当然，显然这种私服激不起什么浪花。&lt;/p&gt;
+</content>
+        <updated>2022-05-11T12:39:38.541Z</updated>
+    </entry>
     <entry>
         <id>https://echidna-sxh.github.io/songs/secret%20base/</id>
         <title>secret base</title>
@@ -769,7 +1111,7 @@
 &lt;p&gt;“刚刚也说了，留给你的时间并不多，这个时候近卫澪估计已经快落入陷阱了吧。”&lt;/p&gt;
 &lt;p&gt;“所以你是来拿这个作为谈判筹码的？” 洛十分冷静。&lt;/p&gt;
 &lt;p&gt;‘代行人’是什么，洛并不清楚，但对方既然带着这样的情报，必然有解救姐姐的办法。&lt;/p&gt;
-&lt;p&gt;而自己需要放在天平的另一边的，是什么似乎已经无关紧要了。&lt;/p&gt;
+&lt;p&gt;一边是姐姐的安危，自己需要放在天平的另一边的，是什么似乎已经无关紧要了。&lt;/p&gt;
 &lt;p&gt;“可以这么理解，” 木村漓微笑，“不过还是希望你不要曲解我的本意，我是很想解救近卫澪的，这个立场和你一致。”&lt;/p&gt;
 &lt;p&gt;“我会加入你的组织，不过关于‘代行人’，这次事情结束后，我需要知道这个身份的含义再考虑。” 洛毫不犹豫，“那么我现在该做什么？”&lt;/p&gt;
 &lt;p&gt;“没问题”，木村漓走到洛的身边，“那么，该介绍一下你自己了。”&lt;/p&gt;
@@ -833,6 +1175,7 @@
 &lt;p&gt;“我出发了。”&lt;/p&gt;
 &lt;p&gt;“在下静候您的凯旋，希望不会用到第二支。”&lt;/p&gt;
 &lt;p&gt;“嗯，我当然也不想死。” 澪向着北巷的方向望了一眼，骑上了门外的摩托，“洛，等我回来！”&lt;/p&gt;
+&lt;p&gt;......&lt;/p&gt;
 &lt;p&gt;北巷卡利斯集团总部工厂内，一个穿着六合天使执行队制服的女人倚靠在一处墙角，双手背在身后，闭着眼睛，似乎在等待什么。&lt;/p&gt;
 &lt;p&gt;一阵脚步声接近，女人睁开双眼，准备转身离开，却没想到直接和对方打了给照面。&lt;/p&gt;
 &lt;p&gt;“你就是上个月调过来的执行警员吧？” 站在人群前面的头领戴着面具，“怎么样，这里的工作还顺利吗？”&lt;/p&gt;
@@ -893,14 +1236,14 @@
 &lt;p&gt;“和计划一样，传达了陷阱信息，你们就乖乖跳进来了。” 帕瓦斯看着米斯凯尔，“哦？来了两个人吗？稍微有点失望，本来想着多剿灭几个反抗军的。”&lt;/p&gt;
 &lt;p&gt;“可恶，我要杀了你！” 澪试图挣脱米斯凯尔，却没能成功。&lt;/p&gt;
 &lt;p&gt;“澪！” 米斯凯尔握着澪的手臂，“我们先走！”&lt;/p&gt;
-&lt;p&gt;“走？” 帕瓦斯冷笑，“你们不会不以为见到我还能全身而退吧，事到如今就算求饶也没有用哦。”&lt;/p&gt;
+&lt;p&gt;“走？” 帕瓦斯冷笑，“你们不会以为见到我还能全身而退吧，事到如今就算求饶也没有用哦。”&lt;/p&gt;
 &lt;p&gt;执行部队大约二三十人，手持轻武器，再加上眼前这个人不是个简单的羽化者，这种情况要逃走也确实不简单。&lt;/p&gt;
 &lt;p&gt;“我答应了洛，要救你回去。” 米斯凯尔握紧澪的手。&lt;/p&gt;
 &lt;p&gt;“不甘心，但 ———— 我确实不是她的对手。” 澪使不上半点力气。&lt;/p&gt;
 &lt;p&gt;“我知道了，我不会冲动的，松手吧。” 澪紧咬牙关。&lt;/p&gt;
 &lt;p&gt;米斯凯尔松开了手，“我来拖住她，你趁机逃走。”&lt;/p&gt;
 &lt;p&gt;“这样的话，我也留下来。” 澪握紧了拳头，“对面这个人是帕瓦斯，很危险，不能留你一个人。”&lt;/p&gt;
-&lt;p&gt;“如果是担心你弟弟的身体的话，我会注意的，毕竟这也是我的身体。” 米斯凯尔说，“如果是想为那个叫樱的女孩报仇的话，现在还不是时候。”&lt;/p&gt;
+&lt;p&gt;“如果是担心你弟弟的身体的话，我会注意的，毕竟这也是我的身体。” 米斯凯尔说，“如果是想为那个叫樱的女孩报仇的话，现实情况并不允许。”&lt;/p&gt;
 &lt;p&gt;&amp;quot;可是 ————&amp;quot;&lt;/p&gt;
 &lt;p&gt;“自顾自的说话，不把我放在眼里吗”，帕瓦斯的嘴角露出一丝不忿，“看来要教教你们这些目中无人的反抗军毛贼，什么叫做六合天使的恐怖。”&lt;/p&gt;
 &lt;p&gt;帕瓦斯抬起右手，瞄准了澪。&lt;/p&gt;
@@ -933,7 +1276,8 @@
 &lt;p&gt;澪成功突围，骑上了摩托。&lt;/p&gt;
 &lt;p&gt;“给我拦住她！” 帕瓦斯一声令下，执行队也骑着车追了上去。&lt;/p&gt;
 &lt;p&gt;米斯凯尔抬起右手瞄准了帕瓦斯。&lt;/p&gt;
-&lt;p&gt;“难道说？” 帕瓦斯也抬起手，“是复制能力吗？”&lt;/p&gt;
+&lt;p&gt;“难道说？” 帕瓦斯也抬起手。&lt;/p&gt;
+&lt;p&gt;“是复制能力吗？”&lt;/p&gt;
 &lt;p&gt;两人发射出的空气弹碰撞的双重音爆瞬间炸开，两人中间的场地上扬起了巨大的灰尘团。&lt;/p&gt;
 &lt;p&gt;米斯凯尔加速向着反方向离开，帕瓦斯见状也加速追了上去。&lt;/p&gt;
 &lt;p&gt;“别想跑！” 帕瓦斯怒吼。&lt;/p&gt;
@@ -948,7 +1292,7 @@
 &lt;p&gt;帕瓦斯在狂笑，被烧伤而扭曲的脸变得更加可怖了起来。&lt;/p&gt;
 &lt;p&gt;“虽然不想这么大动干戈，但似乎现在不是省力气的时候了，现在开始，我要用上这次的全力来歼灭你，受死吧。”&lt;/p&gt;
 &lt;p&gt;“暗能中枢的功率居然大到这种地步？！” 米斯凯尔有些动摇，“该死，这下糟糕了。”&lt;/p&gt;
-&lt;p&gt;暗能系羽化者可以无效对手能力的本质就是，在对手将能量分解为暗能后，可以通过自身对于暗能的元操作，将对手的暗能打回原能量，但这需要至少相等的暗能中枢的功率输出，使用对象离自身的距离越高，功率需求便指数增长。&lt;/p&gt;
+&lt;p&gt;暗能系羽化者可以无效对手能力的本质就是，在对手将能量分解为暗能后，可以通过自身对于暗能的元操作，将对手的暗能打回原能量，但这需要至少相等的暗能中枢的功率作为基数，使用对象离自身的距离越高，功率需求便指数增长，这点和普通羽化者并无二样。&lt;/p&gt;
 &lt;p&gt;面对眼前这种程度的对手，恐怕第一次使用暗能中枢的洛的身体会撑不住。&lt;/p&gt;
 &lt;p&gt;没办法，只能走一步看一步了。&lt;/p&gt;
 &lt;p&gt;帕瓦斯加速自己，瞬间冲到了米斯凯尔的后方。&lt;/p&gt;
@@ -964,7 +1308,8 @@
 &lt;p&gt;米斯凯尔一直保持暗能中枢的功率不超过洛的身体承受范围，但现在看来再这样下去会不妙。&lt;/p&gt;
 &lt;p&gt;帕瓦斯又一次加速到洛的身后，打算故技重施，用包裹着高速气流的双拳向洛袭来。&lt;/p&gt;
 &lt;p&gt;洛和上次一样没有躲开，而是准备接住攻击。&lt;/p&gt;
-&lt;p&gt;“愚蠢！” 帕瓦斯想，但很快发现是自己错了，米斯凯尔的无效能力，不需要距离限制。&lt;/p&gt;
+&lt;p&gt;“愚蠢！” 帕瓦斯想，但很快发现是自己错了。&lt;/p&gt;
+&lt;p&gt;在成倍提高功率的前提下，米斯凯尔的无效能力，不需要接触限制。&lt;/p&gt;
 &lt;p&gt;洛稳稳的接住了两拳，把帕瓦斯拉向自己，用膝击正中帕瓦斯的隔膜。&lt;/p&gt;
 &lt;p&gt;“啊 ——————” 帕瓦斯被踢中，难以呼吸，不停的想用能力拉开距离，但发现就是使不出来。&lt;/p&gt;
 &lt;p&gt;米斯凯尔并不打算就此放手，而是不断的攻击帕瓦斯，似乎是想一口气结束战斗。&lt;/p&gt;
@@ -972,7 +1317,7 @@
 &lt;p&gt;“咳 ————” 米斯凯尔突然松手，将帕瓦斯踹开并后退拉开了距离，同时嘴角流出了一丝鲜血。&lt;/p&gt;
 &lt;p&gt;“居然敢这么伤害六合天使的统领。” 帕瓦斯爬起身，大口的喘着粗气，显然受到的伤害不轻，“胆子不小。”&lt;/p&gt;
 &lt;p&gt;“打到这种地步，还不肯认输吗？” 米斯凯尔强忍着刚刚超负荷使用能力带来的痛苦。&lt;/p&gt;
-&lt;p&gt;刚刚短短几秒钟内，帕瓦斯尝试使用了上百次能力，米斯凯尔也无效了她上百次，感受到洛的身体实在撑不住了，才停止攻击。&lt;/p&gt;
+&lt;p&gt;刚刚短短几秒钟内，帕瓦斯尝试使用了上百次能力，米斯凯尔也无效了她上百次，感受到洛的身体实在撑不住了，这才停止攻击。&lt;/p&gt;
 &lt;p&gt;“认输？你可真敢说。” 帕瓦斯站了起来，“卑微的反抗者，无知之徒。”&lt;/p&gt;
 &lt;p&gt;“不妙 ————” 米斯凯尔想。&lt;/p&gt;
 &lt;p&gt;刚刚的攻击算是破釜沉舟，但没能决出胜负，反而消耗太大，洛的身体别说继续战斗了，现在已经麻痹到了无法动弹的地步。&lt;/p&gt;
@@ -994,8 +1339,7 @@
 &lt;p&gt;“抵消了？” 米斯凯尔也感到不可思议。&lt;/p&gt;
 &lt;p&gt;刚刚见面的时候有偷偷调查过澪的暗能中枢的情况，数据上并不是很强。&lt;/p&gt;
 &lt;p&gt;澪应该做不到抵消帕瓦斯子弹这种程度才对，刚刚到底？&lt;/p&gt;
-&lt;p&gt;难道说？&lt;/p&gt;
-&lt;p&gt;“‘撒旦之力’吗？” 帕瓦斯脑中闪过一个念头，“没想到居然会这么快就出现了。”&lt;/p&gt;
+&lt;p&gt;“难道说，是‘撒旦之力’吗？” 帕瓦斯脑中闪过一个念头，“没想到居然会这么快就出现了。”&lt;/p&gt;
 &lt;p&gt;澪此刻主动加速接近了帕瓦斯，用极快的速度挥出一拳，帕瓦斯用手臂勉强招架住了，但还是伴随着骨头断裂的声音被打退了一段距离。&lt;/p&gt;
 &lt;p&gt;“好重的攻击，哼，看来‘缚’的解放权限到此为止了。这次是我失手了，我承认你们很难对付。” 见到这种被逆转的局势，帕瓦斯终于放弃了，“但下次见到你们，会连今天的帐一起算！”&lt;/p&gt;
 &lt;p&gt;说完，便远离了两人，向着相反方向加速离开了。&lt;/p&gt;
@@ -1043,7 +1387,7 @@
 &lt;p&gt;“嗯，没错。” 千姬熟练地摇匀试管，将溶液分成数份，分别加入各种试剂。&lt;/p&gt;
 &lt;p&gt;“难怪都是怪人。”&lt;/p&gt;
 &lt;p&gt;“承蒙夸奖。” 千姬将处理完的试管组放进了一个仪器内。&lt;/p&gt;
-&lt;p&gt;“不过话虽如此，亲眼看过你有趣的能力后，我对你们产生了很大的兴趣，这点倒是真的哦。”&lt;/p&gt;
+&lt;p&gt;“不过话虽如此，亲眼看过你有趣的能力后，我对你们产生了很大的兴趣，这点倒是真的哦。” 千姬背对着米斯凯尔。&lt;/p&gt;
 &lt;p&gt;“有兴趣的话，刚刚不过来搭把手吗？在我答应加入你们组织的情况下，你应该算是友军吧。” 米斯凯尔不满。&lt;/p&gt;
 &lt;p&gt;“啊啦，这你可真是难为我了，兴趣归兴趣，我从一开始就没有参与的打算哦，况且我的能力可不是那么方便使用的东西。”&lt;/p&gt;
 &lt;p&gt;千姬走到另一台仪器的控制面板前，操作了起来。看起来是连接着澪那张床的仪器。&lt;/p&gt;
@@ -1062,7 +1406,7 @@
 &lt;p&gt;“没错。”&lt;/p&gt;
 &lt;p&gt;“这种情况，只能一边透析出药剂，一边加入新的血液，两个步骤同时进行。” 千姬看着米斯凯尔，“透析的话，这里没有问题，但血液需要身为弟弟的你来提供。”&lt;/p&gt;
 &lt;p&gt;“没问题。”&lt;/p&gt;
-&lt;p&gt;“事先说一下，因为是大规模补充血红细胞，会用掉你身上一半左右的血液，这可是够正常人死几次的失血量。” 千姬长呼一口气，“从用你现在的状况来看，能不能成功还是未知数，这样也没问题吗？”&lt;/p&gt;
+&lt;p&gt;“事先说一下，因为是大规模补充血红细胞，会用掉你身上一半左右的血液，这可是够正常人死几次的失血量。” 千姬长呼一口气，“从你现在的状况来看，能不能成功还是未知数，这样也没问题吗？”&lt;/p&gt;
 &lt;p&gt;羽化者的身体会在暗能体的操作下，依托于暗能中枢的独立运行建立了各种保护机制，包括失血保护，洛当然也不例外，只是不知为什么澪的这种机制没有触发。&lt;/p&gt;
 &lt;p&gt;“如果这样是最有效的办法的话，值得一试。” 米斯凯尔说，&amp;quot;上个世代的我什么都没做到，至少这个世代，我不想再留遗憾了。&amp;quot;&lt;/p&gt;
 &lt;p&gt;“死了我可不管哦。” 千姬打开澪身边一个床位的开关，“做好决定就躺上去吧。”&lt;/p&gt;
@@ -1143,7 +1487,7 @@
 &lt;p&gt;“那，还有办法补救吗？”&lt;/p&gt;
 &lt;p&gt;“灵魂的构成十分复杂，外部重构灵魂十分困难。想让枯竭的灵魂重新苏醒，我所知道的有且只有一例。” 木村漓走到了洛的身后，“六合天使的统领之首，‘原初’羽化者，炽天使撒拉弗，但后来他就如同人间蒸发一般消失了。”&lt;/p&gt;
 &lt;p&gt;“消失了？”&lt;/p&gt;
-&lt;p&gt;“是的，曾经为了终结战争，使用了‘撒旦之力’，而后在灵魂即将消散之际出于不知名的原因，又再次苏醒，但似乎性格大变，稳固住战后秩序之后就突然消失了，所以现在六合天使只有五个统领。”&lt;/p&gt;
+&lt;p&gt;“是的，曾经为了终结战争，使用了‘撒旦之力’，而后在灵魂即将消散之际出于不知名的原因，又再次苏醒，但似乎性格大变，稳固住战后秩序之后就突然消失了，所以现在六合天使实际上只有五个统领。”&lt;/p&gt;
 &lt;p&gt;“唯一的办法就是找到炽天使吗？” 洛感到了又一阵失落。&lt;/p&gt;
 &lt;p&gt;“可恶，要是我能早点发现的话，说不定情况还没这么严重。” 米斯凯尔自责的说，“抱歉，明明有我在。”&lt;/p&gt;
 &lt;p&gt;“不怪你，用我这副身体和六合天使的统领对抗，你已经做的很出色了，是我没有体会到姐姐当时的想法，明明已经察觉到了姐姐的不对劲，我却什么都没有做。”&lt;/p&gt;
@@ -4442,855 +4786,5 @@ conf-&amp;gt;set(&amp;quot;event_cb&amp;quot;, &amp;amp;event_callback, errstr);
         <category term="计算机科学" scheme="https://echidna-sxh.github.io/categories/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%A7%91%E5%AD%A6/" />
         <category term="linux" scheme="https://echidna-sxh.github.io/categories/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%A7%91%E5%AD%A6/linux/" />
         <updated>2021-07-13T08:29:28.000Z</updated>
-    </entry>
-    <entry>
-        <id>https://echidna-sxh.github.io/computer-science/Linux/Linux/</id>
-        <title>section.1 Linux命令</title>
-        <link rel="alternate" href="https://echidna-sxh.github.io/computer-science/Linux/Linux/"/>
-        <content type="html">&lt;h1 id=&#34;linux-目录操作&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#linux-目录操作&#34;&gt;#&lt;/a&gt; Linux 目录操作&lt;/h1&gt;
-&lt;h2 id=&#34;路径表示&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#路径表示&#34;&gt;#&lt;/a&gt; 路径表示&lt;/h2&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;/      绝对路径&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;p&gt;./     当前目录（可省略）&lt;br /&gt;
-../    上级目录&lt;br /&gt;
-～/     当前用户 home 目录&lt;br /&gt;
-～USER/ 此用户 home 目录&lt;/p&gt;
-&lt;h2 id=&#34;ls命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#ls命令&#34;&gt;#&lt;/a&gt; ls 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;ls 命令不仅可以查看 linux 文件夹包含的文件而且可以查看文件权限 (包括目录、文件夹、文件权限) 查看目录信息等等。&lt;/li&gt;
-&lt;li&gt;命令格式为:&lt;/li&gt;
-&lt;/ul&gt;
-&lt;figure class=&#34;highlight bash&#34;&gt;&lt;figcaption data-lang=&#34;bash&#34;&gt;&lt;/figcaption&gt;&lt;table&gt;&lt;tr&gt;&lt;td data-num=&#34;1&#34;&gt;&lt;/td&gt;&lt;td&gt;&lt;pre&gt;&lt;span class=&#34;token function&#34;&gt;ls&lt;/span&gt; -option &lt;span class=&#34;token function&#34;&gt;dir&lt;/span&gt;   &lt;span class=&#34;token comment&#34;&gt;#dict 可省略代指本目录，可用通配符查找本目录&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/figure&gt;&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;参数&lt;/th&gt;
-&lt;th&gt;含义&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;l&lt;/td&gt;
-&lt;td&gt;列出属性&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;a&lt;/td&gt;
-&lt;td&gt;列出包括隐藏文件的所有文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;d&lt;/td&gt;
-&lt;td&gt;只列出目录本身 (意义不明)&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;h&lt;/td&gt;
-&lt;td&gt;更易读&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;R&lt;/td&gt;
-&lt;td&gt;递归列出&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;r&lt;/td&gt;
-&lt;td&gt;反序列出&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2 id=&#34;cd命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#cd命令&#34;&gt;#&lt;/a&gt; cd 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;进入参数所指目录&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2 id=&#34;pwd命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#pwd命令&#34;&gt;#&lt;/a&gt; pwd 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;列出当前工作目录&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2 id=&#34;mkdir命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#mkdir命令&#34;&gt;#&lt;/a&gt; mkdir 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;创建目录&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;命令格式&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;pre&gt;&lt;code&gt;mkdir -options dir #选项可缺省
-&lt;/code&gt;&lt;/pre&gt;
-&lt;ul&gt;
-&lt;li&gt;选项如下:&lt;/li&gt;
-&lt;/ul&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;选项&lt;/th&gt;
-&lt;th&gt;含义&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;m&lt;/td&gt;
-&lt;td&gt;类似 chmod, 格式例如:mkdir -m 777 mydir&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;v&lt;/td&gt;
-&lt;td&gt;显示创建信息&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2 id=&#34;rm命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#rm命令&#34;&gt;#&lt;/a&gt; rm 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;删除命令，后接你要删除的东西，谨慎使用&lt;br /&gt;
-其使用参数如下:&lt;/li&gt;
-&lt;/ul&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;参数&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;-f&lt;/td&gt;
-&lt;td&gt;强制删除，没有提示&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-i&lt;/td&gt;
-&lt;td&gt;交互式删除，要确认&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-r&lt;/td&gt;
-&lt;td&gt;递归删除，要删除目录时必须加上这个选项&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-v&lt;/td&gt;
-&lt;td&gt;详细显示删除信息&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2 id=&#34;mv命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#mv命令&#34;&gt;#&lt;/a&gt; mv 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;本意时用于移动文件，实际也可以用于重命名.&lt;br /&gt;
- 其使用参数如下:&lt;/li&gt;
-&lt;/ul&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;参数&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;-b&lt;/td&gt;
-&lt;td&gt;如果移动需要覆盖，则先对被覆盖文件备份&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-f&lt;/td&gt;
-&lt;td&gt;强制执行，不会询问&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-i&lt;/td&gt;
-&lt;td&gt;交互式移动&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2 id=&#34;cp命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#cp命令&#34;&gt;#&lt;/a&gt; cp 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;复制粘贴命令&lt;/li&gt;
-&lt;li&gt;其格式如下:&lt;/li&gt;
-&lt;/ul&gt;
-&lt;figure class=&#34;highlight bash&#34;&gt;&lt;figcaption data-lang=&#34;bash&#34;&gt;&lt;/figcaption&gt;&lt;table&gt;&lt;tr&gt;&lt;td data-num=&#34;1&#34;&gt;&lt;/td&gt;&lt;td&gt;&lt;pre&gt;&lt;span class=&#34;token function&#34;&gt;cp&lt;/span&gt; -options &lt;span class=&#34;token function&#34;&gt;file&lt;/span&gt; &lt;span class=&#34;token function&#34;&gt;dir&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/figure&gt;&lt;p&gt;其常用选项如下:&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;选项&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;t&lt;/td&gt;
-&lt;td&gt;可省略，指目标目录&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;i&lt;/td&gt;
-&lt;td&gt;交互式复制粘贴&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;f&lt;/td&gt;
-&lt;td&gt;强制复制粘贴&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;r&lt;/td&gt;
-&lt;td&gt;递归复制&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2 id=&#34;touch命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#touch命令&#34;&gt;#&lt;/a&gt; touch 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;本来是用于修改目录或文件的日期时间，默认为现在时间，多用于创建空文件&lt;br /&gt;
-其选项如下:&lt;/li&gt;
-&lt;/ul&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;选项&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;-d&lt;/td&gt;
-&lt;td&gt;指定日期时间&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-r&lt;/td&gt;
-&lt;td&gt;递归更改时间，作用于目录及其下所有文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2 id=&#34;cat命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#cat命令&#34;&gt;#&lt;/a&gt; cat 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;用于打印文件中的内容，经常和管道一起使用或使用文件来重定向.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;其参数如下:&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;参数&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;-A&lt;/td&gt;
-&lt;td&gt;显示所有内容，同 - vET&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-n&lt;/td&gt;
-&lt;td&gt;输出行号&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-s&lt;/td&gt;
-&lt;td&gt;连续空白行只视作一行&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-E&lt;/td&gt;
-&lt;td&gt;每行结尾处显示 $&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-T&lt;/td&gt;
-&lt;td&gt;Tab 键显示为 ^|&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-v&lt;/td&gt;
-&lt;td&gt;显示本来不显示的字符，和 ET 一起使用&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2 id=&#34;nl命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#nl命令&#34;&gt;#&lt;/a&gt; nl 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;输出的文件内容自动的加上行号！其默认的结果与 cat -n 有点不太一样， nl 可以将行号做比较多的显示设计，包括位数与是否自动补齐 0 等等的功能。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;pre&gt;&lt;code&gt;nl -options filename
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;其参数如下:&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;参数&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;-b a&lt;/td&gt;
-&lt;td&gt;把所有空白行加行号&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-b t&lt;/td&gt;
-&lt;td&gt;(默认) 空行不列出行号&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-n ln&lt;/td&gt;
-&lt;td&gt;行号在左边&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-n rn&lt;/td&gt;
-&lt;td&gt;行号在右边&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-w&lt;/td&gt;
-&lt;td&gt;行号栏占用的位数&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2 id=&#34;less命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#less命令&#34;&gt;#&lt;/a&gt; less 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;有一个相似的命令是 more, 不过基本被 less 取代，less 可以随意浏览文件，在打印出来后使用操作命令即可&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;常用参数:&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;参数&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;-f&lt;/td&gt;
-&lt;td&gt;强制打开&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-b&lt;/td&gt;
-&lt;td&gt;设设置缓冲区大小&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-e&lt;/td&gt;
-&lt;td&gt;文件浏览完自动退出&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-i&lt;/td&gt;
-&lt;td&gt;忽略搜索时大小写&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-N&lt;/td&gt;
-&lt;td&gt;显示行号&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-s&lt;/td&gt;
-&lt;td&gt;连续空行算作一行&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-x n&lt;/td&gt;
-&lt;td&gt;把 tab 键显示为 n 个空格&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-o filename&lt;/td&gt;
-&lt;td&gt;把显示内容存在指定文件中&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;p&gt;打印后的操作命令 (和 vim 的命令模式操作类似):&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;参数&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;/string&lt;/td&gt;
-&lt;td&gt;向下查找字符串&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;?string&lt;/td&gt;
-&lt;td&gt;向下查找字符串&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;n&lt;/td&gt;
-&lt;td&gt;重复前一搜索&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;N&lt;/td&gt;
-&lt;td&gt;反向&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;b&lt;/td&gt;
-&lt;td&gt;向后翻一页&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;d&lt;/td&gt;
-&lt;td&gt;向后翻半页&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;y&lt;/td&gt;
-&lt;td&gt;向前滚动一页&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;u&lt;/td&gt;
-&lt;td&gt;向前滚动半页&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;空格键&lt;/td&gt;
-&lt;td&gt;滚动一行&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;回车键&lt;/td&gt;
-&lt;td&gt;滚动一页&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;pageup&lt;/td&gt;
-&lt;td&gt;向上翻动一页&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;pagedown&lt;/td&gt;
-&lt;td&gt;向下翻动一页&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;h&lt;/td&gt;
-&lt;td&gt;帮助&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Q&lt;/td&gt;
-&lt;td&gt;退出 less&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h1 id=&#34;linux文件检索&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#linux文件检索&#34;&gt;#&lt;/a&gt; linux 文件检索&lt;/h1&gt;
-&lt;h2 id=&#34;which命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#which命令&#34;&gt;#&lt;/a&gt; which 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;which 用于检索环境变量中的可执行文件的路径&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;如:&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;pre&gt;&lt;code&gt;which pwd
-&lt;/code&gt;&lt;/pre&gt;
-&lt;h2 id=&#34;whereis命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#whereis命令&#34;&gt;#&lt;/a&gt; whereis 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;whereis 可以定位可执行文件，源代码文件，帮助文件等文件在系统中的位置。这个命令的原理和下面要介绍的 locate 一样，并非暴力检索，而是在系统数据库中检索，这个数据库不是实时更新的，所以会有一定时间上的偏差，如找到已经被删除的文件或找不到新添加的文件.&lt;/li&gt;
-&lt;li&gt;命令格式为:&lt;/li&gt;
-&lt;/ul&gt;
-&lt;pre&gt;&lt;code class=&#34;language-B&#34;&gt;whereis -[bmsu] -[BMS] [目录] 文件名
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;其参数如下含义:&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;参数&lt;/th&gt;
-&lt;th&gt;含义&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;b&lt;/td&gt;
-&lt;td&gt;检索可执行文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;m&lt;/td&gt;
-&lt;td&gt;检索帮助文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;s&lt;/td&gt;
-&lt;td&gt;检索源代码文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;u&lt;/td&gt;
-&lt;td&gt;检索除上述以外的文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;B&lt;/td&gt;
-&lt;td&gt;提供检索可执行文件的目录&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;M&lt;/td&gt;
-&lt;td&gt;提供检索帮助文件的目录&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;S&lt;/td&gt;
-&lt;td&gt;提供检索源代码文件的目录&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;p&gt;上述参数可以省略，默认是从根目录开始找到所有符合文件名的文件.&lt;/p&gt;
-&lt;h2 id=&#34;locate命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#locate命令&#34;&gt;#&lt;/a&gt; locate 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;locate 可以查找所有相关文件，只要相关就会列出来，包括文件名包含参数，文件在找到的目标的目录下等情况.(一般会列出很多)&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;如:&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;寻找 pwd 相关文件&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;locate pwd
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;搜索 etc 目录下所有 p 开头文件&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;locate /etc/m
-&lt;/code&gt;&lt;/pre&gt;
-&lt;h2 id=&#34;find命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#find命令&#34;&gt;#&lt;/a&gt; find 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;该命令不同于以上两个，是递归的暴力检索，查找目标目录下的相关文件，注意 find 是完全匹配，不模糊搜索，但可以使用通配符.find 命令较为复杂，这里只列出最简单的用法.&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;命令格式:&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;figure class=&#34;highlight bash&#34;&gt;&lt;figcaption data-lang=&#34;bash&#34;&gt;&lt;/figcaption&gt;&lt;table&gt;&lt;tr&gt;&lt;td data-num=&#34;1&#34;&gt;&lt;/td&gt;&lt;td&gt;&lt;pre&gt;&lt;span class=&#34;token function&#34;&gt;find&lt;/span&gt; -&lt;span class=&#34;token punctuation&#34;&gt;[&lt;/span&gt;options&lt;span class=&#34;token punctuation&#34;&gt;]&lt;/span&gt; &lt;span class=&#34;token punctuation&#34;&gt;[&lt;/span&gt;搜索路径&lt;span class=&#34;token punctuation&#34;&gt;]&lt;/span&gt; &lt;span class=&#34;token punctuation&#34;&gt;[&lt;/span&gt;文件名表达式&lt;span class=&#34;token punctuation&#34;&gt;]&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/figure&gt;&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;参数&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;-print&lt;/td&gt;
-&lt;td&gt;将找到的文件打印出来&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-name&lt;/td&gt;
-&lt;td&gt;按照名字检索文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;p&gt;如:&lt;/p&gt;
-&lt;figure class=&#34;highlight bash&#34;&gt;&lt;figcaption data-lang=&#34;bash&#34;&gt;&lt;/figcaption&gt;&lt;table&gt;&lt;tr&gt;&lt;td data-num=&#34;1&#34;&gt;&lt;/td&gt;&lt;td&gt;&lt;pre&gt;&lt;span class=&#34;token function&#34;&gt;find&lt;/span&gt; &lt;span class=&#34;token builtin class-name&#34;&gt;.&lt;/span&gt; -name &lt;span class=&#34;token string&#34;&gt;&#34;.c&#34;&lt;/span&gt;   &lt;span class=&#34;token comment&#34;&gt;#其实好像 ls 也能做到这种&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/figure&gt;&lt;h1 id=&#34;压缩命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#压缩命令&#34;&gt;#&lt;/a&gt; 压缩命令&lt;/h1&gt;
-&lt;h2 id=&#34;tar命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#tar命令&#34;&gt;#&lt;/a&gt; tar 命令&lt;/h2&gt;
-&lt;p&gt;用于调用压缩功能完成压缩文件.&lt;/p&gt;
-&lt;p&gt;参数不过多解释，一般使用 - zcvf 压缩，用 zxvf 解压缩.&lt;/p&gt;
-&lt;p&gt;z 是压缩选项，不加就只打包不压缩，c 是新建打包文件，x 是从打包文件提取文件，v 是显示操作过程，f 是指定文件&lt;/p&gt;
-&lt;p&gt;如:&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;tar -zcvf sample.tar.gz sample   #把sample打包成gzip文件
-&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;tar -zxvf sample.tar.gz  #把这个gzip包解压
-&lt;/code&gt;&lt;/pre&gt;
-&lt;h2 id=&#34;gzip命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#gzip命令&#34;&gt;#&lt;/a&gt; gzip 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;用的不多，原生支持 gz 格式&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h1 id=&#34;文件权限&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#文件权限&#34;&gt;#&lt;/a&gt; 文件权限&lt;/h1&gt;
-&lt;h2 id=&#34;chmod文件&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#chmod文件&#34;&gt;#&lt;/a&gt; chmod 文件&lt;/h2&gt;
-&lt;p&gt;改变文件权限，其格式如下:&lt;/p&gt;
-&lt;figure class=&#34;highlight bash&#34;&gt;&lt;figcaption data-lang=&#34;bash&#34;&gt;&lt;/figcaption&gt;&lt;table&gt;&lt;tr&gt;&lt;td data-num=&#34;1&#34;&gt;&lt;/td&gt;&lt;td&gt;&lt;pre&gt;&lt;span class=&#34;token function&#34;&gt;chmod&lt;/span&gt; -&lt;span class=&#34;token punctuation&#34;&gt;[&lt;/span&gt;option&lt;span class=&#34;token punctuation&#34;&gt;]&lt;/span&gt; mode &lt;span class=&#34;token function&#34;&gt;file&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/figure&gt;&lt;p&gt;选项如下:&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;选项&lt;/th&gt;
-&lt;th&gt;参数&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;-c&lt;/td&gt;
-&lt;td&gt;confirm, 报告改变权限的信息&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-f&lt;/td&gt;
-&lt;td&gt;强制执行，不输出错误&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-R&lt;/td&gt;
-&lt;td&gt;递归处理其子文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-v&lt;/td&gt;
-&lt;td&gt;view, 执行时显示详细信息&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;mode 的组成公式是:&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&amp;lt;权限范围&amp;gt;[权限设置]&amp;lt; 权限内容 &amp;gt;&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;权限范围&lt;/th&gt;
-&lt;th&gt;含义&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;a&lt;/td&gt;
-&lt;td&gt;所有用户&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;u&lt;/td&gt;
-&lt;td&gt;文件的当前用户&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;g&lt;/td&gt;
-&lt;td&gt;文件的当前用户组&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;o&lt;/td&gt;
-&lt;td&gt;所有不相关用户&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;权限设置&lt;/td&gt;
-&lt;td&gt;含义&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-&lt;/td&gt;
-&lt;td&gt;-&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;+&lt;/td&gt;
-&lt;td&gt;增加权限&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-&lt;/td&gt;
-&lt;td&gt;删除权限&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;=&lt;/td&gt;
-&lt;td&gt;设置权限&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;权限内容&lt;/td&gt;
-&lt;td&gt;含义&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-&lt;/td&gt;
-&lt;td&gt;-&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;r&lt;/td&gt;
-&lt;td&gt;读权限&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;w&lt;/td&gt;
-&lt;td&gt;写权限&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;x&lt;/td&gt;
-&lt;td&gt;执行权限&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;p&gt;例如:&lt;/p&gt;
-&lt;figure class=&#34;highlight bash&#34;&gt;&lt;figcaption data-lang=&#34;bash&#34;&gt;&lt;/figcaption&gt;&lt;table&gt;&lt;tr&gt;&lt;td data-num=&#34;1&#34;&gt;&lt;/td&gt;&lt;td&gt;&lt;pre&gt;&lt;span class=&#34;token function&#34;&gt;chmod&lt;/span&gt; a+x sample.sh  &lt;span class=&#34;token comment&#34;&gt;#给与所有用户这个 sh 文件的运行权限&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/figure&gt;&lt;p&gt;mode 还可以以数字形式表示，三个数字分别代指文件所属用户，文件所属用户的用户组，其他用户的权限，有每个数字 rwx 三个位置，将对应权限用 1 表示，没有的权限用 0 表示，得到二进制数字转十进制即可表示一个用户的权限.&lt;/p&gt;
-&lt;p&gt;例如:&lt;/p&gt;
-&lt;figure class=&#34;highlight bash&#34;&gt;&lt;figcaption data-lang=&#34;bash&#34;&gt;&lt;/figcaption&gt;&lt;table&gt;&lt;tr&gt;&lt;td data-num=&#34;1&#34;&gt;&lt;/td&gt;&lt;td&gt;&lt;pre&gt;&lt;span class=&#34;token function&#34;&gt;chmod&lt;/span&gt; &lt;span class=&#34;token number&#34;&gt;777&lt;/span&gt; sample.sh&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/figure&gt;&lt;h2 id=&#34;chown命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#chown命令&#34;&gt;#&lt;/a&gt; chown 命令&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;改变文件所属用户和群组&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;命令格式:&lt;/p&gt;
-&lt;figure class=&#34;highlight bash&#34;&gt;&lt;figcaption data-lang=&#34;bash&#34;&gt;&lt;/figcaption&gt;&lt;table&gt;&lt;tr&gt;&lt;td data-num=&#34;1&#34;&gt;&lt;/td&gt;&lt;td&gt;&lt;pre&gt;&lt;span class=&#34;token function&#34;&gt;chown&lt;/span&gt; -&lt;span class=&#34;token punctuation&#34;&gt;[&lt;/span&gt;option&lt;span class=&#34;token punctuation&#34;&gt;]&lt;/span&gt; user:group filenames&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/figure&gt;&lt;p&gt;选项如下:&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;选项&lt;/th&gt;
-&lt;th&gt;含义&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;-c&lt;/td&gt;
-&lt;td&gt;显示提示信息&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-f&lt;/td&gt;
-&lt;td&gt;忽略错误信息&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-R&lt;/td&gt;
-&lt;td&gt;递归修改权限&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-v&lt;/td&gt;
-&lt;td&gt;详细显示处理信息&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;p&gt;例如:&lt;/p&gt;
-&lt;figure class=&#34;highlight bash&#34;&gt;&lt;figcaption data-lang=&#34;bash&#34;&gt;&lt;/figcaption&gt;&lt;table&gt;&lt;tr&gt;&lt;td data-num=&#34;1&#34;&gt;&lt;/td&gt;&lt;td&gt;&lt;pre&gt;&lt;span class=&#34;token function&#34;&gt;chown&lt;/span&gt; -R root:root sample&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/figure&gt;&lt;h1 id=&#34;磁盘存储&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#磁盘存储&#34;&gt;#&lt;/a&gt; 磁盘存储&lt;/h1&gt;
-&lt;h2 id=&#34;df命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#df命令&#34;&gt;#&lt;/a&gt; df 命令&lt;/h2&gt;
-&lt;p&gt;显示磁盘剩余空间&lt;/p&gt;
-&lt;h2 id=&#34;du命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#du命令&#34;&gt;#&lt;/a&gt; du 命令&lt;/h2&gt;
-&lt;p&gt;显示占用的磁盘空间&lt;/p&gt;
-&lt;p&gt;命令格式如下:&lt;/p&gt;
-&lt;figure class=&#34;highlight bash&#34;&gt;&lt;figcaption data-lang=&#34;bash&#34;&gt;&lt;/figcaption&gt;&lt;table&gt;&lt;tr&gt;&lt;td data-num=&#34;1&#34;&gt;&lt;/td&gt;&lt;td&gt;&lt;pre&gt;&lt;span class=&#34;token function&#34;&gt;du&lt;/span&gt; -&lt;span class=&#34;token punctuation&#34;&gt;[&lt;/span&gt;option&lt;span class=&#34;token punctuation&#34;&gt;]&lt;/span&gt; file&lt;span class=&#34;token punctuation&#34;&gt;(&lt;/span&gt;dir&lt;span class=&#34;token punctuation&#34;&gt;)&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/figure&gt;&lt;p&gt;参数如下:&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;参数&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;-a&lt;/td&gt;
-&lt;td&gt;显示目录中的所有文件的大小&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-b&lt;/td&gt;
-&lt;td&gt;以字节为单位&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-k&lt;/td&gt;
-&lt;td&gt;以 kb 为单位&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-m&lt;/td&gt;
-&lt;td&gt;以 mb 为单位&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-s&lt;/td&gt;
-&lt;td&gt;只显示总计大小&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-h&lt;/td&gt;
-&lt;td&gt;推荐使用，使得输出便于阅读&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h1 id=&#34;内存和进程管理&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#内存和进程管理&#34;&gt;#&lt;/a&gt; 内存和进程管理&lt;/h1&gt;
-&lt;h2 id=&#34;top命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#top命令&#34;&gt;#&lt;/a&gt; top 命令&lt;/h2&gt;
-&lt;p&gt;显示当前系统正在执行的进程的相关信息，包括进程 ID、内存占用率、CPU 占用率等，-u 指定进程用户，-p 指定进程号&lt;/p&gt;
-&lt;h2 id=&#34;free命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#free命令&#34;&gt;#&lt;/a&gt; free 命令&lt;/h2&gt;
-&lt;p&gt;显示系统使用和空闲的内存情况，包括物理内存、交互区内存 (swap) 和内核缓冲区内存，默认单位 b,-m 使用 mb 单位，-g 使用 gb 单位。&lt;/p&gt;
-&lt;h2 id=&#34;lsof&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#lsof&#34;&gt;#&lt;/a&gt; lsof&lt;/h2&gt;
-&lt;p&gt;用于查看某特定进程打开的所有文件，以及某文件被哪个进程使用，还有进程打开的端口.&lt;br /&gt;
- 命令格式:&lt;/p&gt;
-&lt;figure class=&#34;highlight bash&#34;&gt;&lt;figcaption data-lang=&#34;bash&#34;&gt;&lt;/figcaption&gt;&lt;table&gt;&lt;tr&gt;&lt;td data-num=&#34;1&#34;&gt;&lt;/td&gt;&lt;td&gt;&lt;pre&gt;&lt;span class=&#34;token function&#34;&gt;lsof&lt;/span&gt; -&lt;span class=&#34;token punctuation&#34;&gt;[&lt;/span&gt;options&lt;span class=&#34;token punctuation&#34;&gt;]&lt;/span&gt; &lt;span class=&#34;token punctuation&#34;&gt;(&lt;/span&gt;filename&lt;span class=&#34;token punctuation&#34;&gt;)&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/figure&gt;&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;选项&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;-a&lt;/td&gt;
-&lt;td&gt;列出打开文件存在的进程&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-c &amp;lt;进程名&amp;gt;&lt;/td&gt;
-&lt;td&gt;列出指定进程所打开的文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-g&lt;/td&gt;
-&lt;td&gt;列出 GID 号进程详情&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-d &amp;lt;文件号&amp;gt;&lt;/td&gt;
-&lt;td&gt;列出占用该文件号的进程&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;+d &amp;lt;目录&amp;gt;&lt;/td&gt;
-&lt;td&gt;列出目录下被打开的文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;+D &amp;lt;目录&amp;gt;&lt;/td&gt;
-&lt;td&gt;递归列出目录下被打开的文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-n &amp;lt;目录&amp;gt;&lt;/td&gt;
-&lt;td&gt;列出使用 NFS 的文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-i &amp;lt;条件&amp;gt;&lt;/td&gt;
-&lt;td&gt;列出符合条件的进程。（4、6、协议、: 端口、 @ip ）&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-p &amp;lt;进程号&amp;gt;&lt;/td&gt;
-&lt;td&gt;列出指定进程号所打开的文件&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;-u&lt;/td&gt;
-&lt;td&gt;列出 UID 号进程详情&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h1 id=&#34;linux的网络命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#linux的网络命令&#34;&gt;#&lt;/a&gt; linux 的网络命令&lt;/h1&gt;
-&lt;h2 id=&#34;ifconfig&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#ifconfig&#34;&gt;#&lt;/a&gt; ifconfig&lt;/h2&gt;
-&lt;p&gt;用来查看网络配置&lt;/p&gt;
-&lt;h2 id=&#34;ping命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#ping命令&#34;&gt;#&lt;/a&gt; ping 命令&lt;/h2&gt;
-&lt;p&gt;利用 ICMP 协议进行网络状态检测&lt;/p&gt;
-&lt;h2 id=&#34;traceroute命令&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#traceroute命令&#34;&gt;#&lt;/a&gt; traceroute 命令&lt;/h2&gt;
-&lt;p&gt;后接主机，可以追踪数据包的路由路径&lt;/p&gt;
-&lt;h2 id=&#34;netstat&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#netstat&#34;&gt;#&lt;/a&gt; netstat&lt;/h2&gt;
-&lt;p&gt;用于显示与 IP、TCP、UDP 和 ICMP 协议相关的统计数据，一般用于检验本机各端口的网络连接情况。&lt;/p&gt;
-&lt;h1 id=&#34;linux的ctrl&#34;&gt;&lt;a class=&#34;anchor&#34; href=&#34;#linux的ctrl&#34;&gt;#&lt;/a&gt; Linux 的 ctrl&lt;/h1&gt;
-&lt;ul&gt;
-&lt;li&gt;快捷键&lt;/li&gt;
-&lt;/ul&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;组合&lt;/th&gt;
-&lt;th&gt;含义&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;Tab&lt;/td&gt;
-&lt;td&gt;自动补全，虽然不是 ctrl 但真的好用&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;CTRL+C&lt;/td&gt;
-&lt;td&gt;终结终端的命令或进程&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;CTRL+Z&lt;/td&gt;
-&lt;td&gt;将当前程序送入后台，可以用 fg 重新调出&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;CTRL+D&lt;/td&gt;
-&lt;td&gt;同 exit 命令，退出当前终端用户的登录，在输入时代表一个二进制数值，同 EOF, 表示输出结束&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;CTRL+L&lt;/td&gt;
-&lt;td&gt;同 clear 命令，清屏&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;CTRL+A&lt;/td&gt;
-&lt;td&gt;将光标送到当前行的首部&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;CTRL+E&lt;/td&gt;
-&lt;td&gt;将光标送到当前行的末尾&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;CTRL+U&lt;/td&gt;
-&lt;td&gt;将光标到首部的所有内容删除&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;CTRL+K&lt;/td&gt;
-&lt;td&gt;将这一行清除&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;CTRL+W&lt;/td&gt;
-&lt;td&gt;将光标前的一个单词清除&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;CTRL+Y&lt;/td&gt;
-&lt;td&gt;将用前三个命令删除的内容粘贴到光标位置&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;ul&gt;
-&lt;li&gt;systemctl&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;systemctl 是 systemd 的主命令，是整个系统的守护进程，用于管理系统，其进程号 pid=1, 其他所有进程都是它的子进程.&lt;/p&gt;
-&lt;p&gt;service 命令同样用于管理系统，其原理是执行 /etc/initial.d 下的命令，而 systemctl 命令兼容 service, 也可以去 init.d 下去找命令 (所以用 systemctl 吧～)&lt;/p&gt;
-&lt;p&gt;除了最基本的关机重启等，systemctl 还可以操作系统的任何服务，默认服务后缀名为.service. 我们使用:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;systemctl start nginx    #启动 nginx 服务&lt;/li&gt;
-&lt;li&gt;systemctl stop nginx    #停止 nginx 服务&lt;/li&gt;
-&lt;li&gt;systemctl restart nginx    #重启 nginx 服务&lt;/li&gt;
-&lt;li&gt;systemctl kill nginx    #杀死 nginx 服务及其所有子进程&lt;/li&gt;
-&lt;li&gt;systemctl reload nginx    #重新载入 nginx 配置文件&lt;/li&gt;
-&lt;li&gt;systemctl enable nginx    #允许开机自启动，即建立符号链接到 systemd 目录中&lt;/li&gt;
-&lt;li&gt;systemctl disabled nginx    #禁止开机自启动，即取消符号链接&lt;/li&gt;
-&lt;li&gt;systemctl daemon-reload     #重新载入所有修改过的配置文件&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;这些配置文件存放在 /usr/lib/systemd/system/ 中，但 systemd 读取的是其在 /etc/systemd/system/ 中读取其符号链接 (大部分), 这些程序可以开机自启.&lt;/p&gt;
-</content>
-        <category term="计算机科学" scheme="https://echidna-sxh.github.io/categories/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%A7%91%E5%AD%A6/" />
-        <category term="linux" scheme="https://echidna-sxh.github.io/categories/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%A7%91%E5%AD%A6/linux/" />
-        <updated>2021-07-12T08:29:28.000Z</updated>
     </entry>
 </feed>
